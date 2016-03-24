@@ -14,7 +14,7 @@ public class ReceiverInfo {
         printRec();
     }
 
-    //计算每个收件人出现的次数
+    //鑾峰彇璇嶆眹鍑虹幇娆℃暟鏈�澶氱殑鍗曡瘝
     public static void getMostRec(String fileName) {
         String line = "";
         try {
@@ -34,7 +34,7 @@ public class ReceiverInfo {
         }
     }
 
-    //按照次数从多到少输出收件人的具体出现次数
+    //鎵撳嵃鎺掑簭鍚庣殑map
     public static void printRec() {
         List<Map.Entry<String, Integer>> list = new ArrayList<Map.Entry<String, Integer>>();
         list.addAll(hashmap.entrySet());
@@ -46,7 +46,7 @@ public class ReceiverInfo {
 
     }
 
-    //实现Comparator接口，实现排序结果是从大到小
+    //瀹炵幇Comparator鍊熷彛锛屽疄鐜癷nt鎺掑簭缁撴灉浠庡ぇ鍒板皬
     private static class ValueComparator implements Comparator<Map.Entry<String,Integer>>
     {
         public int compare(Map.Entry<String,Integer> m,Map.Entry<String,Integer> n)

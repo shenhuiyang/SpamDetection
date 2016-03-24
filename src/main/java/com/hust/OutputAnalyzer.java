@@ -15,6 +15,7 @@ public class OutputAnalyzer {
     public static void analyseResult(String resultFile) {
         try {
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(new File(resultFile))));
+            FileWriter fileWriter = new FileWriter(new File(SpamMailDetection.OUTPUT_PATH));
             String tmp = "";
             int count = 0;
             int spamAsHam = 0;
@@ -28,10 +29,16 @@ public class OutputAnalyzer {
                         hamAsSpam++;
                     }
                     count++;
-                    System.out.println(content[1] + " " + content[0] + " is misjudge as " + content[2] + " probability is " + content[3]);
+                    String detail = content[1] + " " + content[0] + " is misjudge as " + content[2] + " probability is " + content[3];
+                    System.out.println(detail);
+                    fileWriter.write(detail + "\n");
                 }
             }
             bufferedReader.close();
+            fileWriter.write("total misjudge : " + count + "\n");
+            fileWriter.write("spam misjudge as ham : " + spamAsHam + "\n");
+            fileWriter.write("ham misjudge as spam : " + hamAsSpam);
+            fileWriter.close();
             System.out.println("total misjudge : " + count);
             System.out.println("spam misjudge as ham : " + spamAsHam);
             System.out.println("ham misjudge as spam : " + hamAsSpam);

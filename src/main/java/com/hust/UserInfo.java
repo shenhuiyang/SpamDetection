@@ -47,7 +47,7 @@ public class UserInfo {
         userMap.put("fromUser", fromUser);
         userMap.put("toUser", toUser);
         userMap.put("email", new File(filePath).getName());
-        userMap.put("Hobby", hobby);
+        userMap.put("hobby", hobby);
         return userMap;
     }
 }

@@ -5,76 +5,146 @@ import java.util.*;
 
 
 public class SpamMailDetection {
-    public static final String BASE_PATH = "H:\\Experiment\\Experiment4";
+    public static final String BASE_PATH = "H:\\Experiment_Full\\Experiment8";
     public static final String SPAM_PATH = BASE_PATH + "\\Train\\spam";//spam训练集目录
-    public static final String OK_PATH = BASE_PATH + "\\Train\\ham";//ham训练集目录
+    public static final String HAM_PATH = BASE_PATH + "\\Train\\ham";//ham训练集目录
     public static final String EMAIL_PATH = BASE_PATH + "\\Test";//测试集目录
-    public static final String RESULT_PATH = BASE_PATH + "\\Result\\result.txt";
+    public static final String DEBUG_PATH = BASE_PATH + "\\Debug";
+    public static final int FEATURE_NUM = 800;
+    public static final String ALGORITHM = "ATIB";
+    public static final String suffix = FEATURE_NUM + "features_" + ALGORITHM;
+    public static final String RESULT_PATH = BASE_PATH + "\\Result\\result_" + suffix;
+    public static final String OUTPUT_PATH = BASE_PATH + "\\OutputAnalysis\\analysis_" + suffix;
     public static final String DICT_PATH = BASE_PATH + "\\dict.txt";//词典
-    public static final String SPAM_MAP_PATH = BASE_PATH + "\\Result\\spamMap.txt";
-    public static final String HAM_MAP_PATH = BASE_PATH + "\\Result\\hamMap.txt";
+    public static final String PROBABILITY_MAP_PATH = BASE_PATH + "\\Result\\probabilityMap_" + FEATURE_NUM;
+    public static final String SPAM_WORD_MAP = BASE_PATH + "\\Result\\spamWordMap.txt";
+    public static final String HAM_WORD_MAP = BASE_PATH + "\\Result\\hamWordMap.txt";
+    public static final String SPAM_MAP = BASE_PATH + "\\Result\\spamMap_" + FEATURE_NUM;
+    public static final String HAM_MAP = BASE_PATH + "\\Result\\hamMap_" + FEATURE_NUM;
+    public static final String MISJUDGE_HAM = BASE_PATH + "\\Misjudge\\ham";
+    public static final String MISJUDGE_SPAM = BASE_PATH + "\\Misjudge\\spam";
     public static int LS = 2; //laplace系数
-    public static double PS = 0.7;
-    public static double PH = 0.3;
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
         SpamMailDetection smc = new SpamMailDetection();
-        //<word,(word/NonSpamCorpus)>
-        Map<String, Double> okmap = smc.createMailMap(OK_PATH);
+        smc.trainBayes();
+        Map<String, Double> hamMap = smc.readMap(HAM_MAP);
         //<word,(word/SpamCorpus)>
-        Map<String, Double> spammap = smc.createMailMap(SPAM_PATH);
-        List<String> featureList = FeatureExtraction.extractFeature();
-        Map<String, Double> hamTmpMap = smc.laplaceMap(spammap, okmap, "HAM");
-        Map<String, Double> spamTmpMap = smc.laplaceMap(spammap, okmap, "SPAM");
-        Map<String, Double> hamMap = new HashMap<String, Double>();
-        Map<String, Double> spamMap = new HashMap<String, Double>();
-        for (String word : featureList) {
-            if (hamTmpMap.containsKey(word)) {
-                hamMap.put(word, hamTmpMap.get(word));
-            }
-            if (spamTmpMap.containsKey(word)) {
-                spamMap.put(word, spamTmpMap.get(word));
-            }
-        }
-        SpamMailDetection.saveMap(hamMap, HAM_MAP_PATH);
-        SpamMailDetection.saveMap(spamMap, SPAM_MAP_PATH);
-        Map<String, Double> ratemap = smc.createSpamProbabilityMap(spammap, okmap);
-        smc.judgeMail(EMAIL_PATH, spamMap, hamMap);
-        long endTime = System.currentTimeMillis();
-        System.out.println("time costs:" + (endTime - startTime) + "ms");
+        Map<String, Double> spamMap = smc.readMap(SPAM_MAP);
+        //<word,(word/NonSpamCorpus)>
+//        Map<String, Double> hamMap = smc.createMailMap(HAM_PATH);
+//        //<word,(word/SpamCorpus)>
+//        Map<String, Double> spamMap = smc.createMailMap(SPAM_PATH);
 
+        smc.judgeNewMail(EMAIL_PATH,spamMap,hamMap,ALGORITHM);
+//        Map<String, Double> probabilityMap = smc.createSpamProbabilityMap(spamMap, hamMap);
+//        smc.judgeMail(EMAIL_PATH, probabilityMap, ALGORITHM);
+        long endTime = System.currentTimeMillis();
+        OutputAnalyzer.analyseResult(RESULT_PATH);
+        System.out.println("time costs:" + (endTime - startTime)/1000/60 + "min");
     }
 
     /**
-     * 给定邮件，分词，根据分词结果判断是垃圾邮件的概率
-     * P(Spam|t1,t2,t3,...tn)=(P1*P2*...PN)/(P1*P2*...PN+(1-P1)*(1-P2)*...(1-PN))
+     * 贝叶斯训练过程，将hamMap和spamMap写入Result文件夹中
+     * 测试新邮件时直接读取文件的条件概率值，进行计算
      */
-    public void judgeMail(String emailPath, Map<String, Double> spamMap, Map<String, Double> hamMap) {
+    public void trainBayes() {
+        Map<String, Double> hamMap = createMailMap(HAM_PATH);
+        try {
+            FileWriter fileWriter = new FileWriter(new File(HAM_MAP));
+            for (String word : hamMap.keySet()) {
+                String text = word + "\t" + hamMap.get(word);
+                fileWriter.write(text);
+                fileWriter.write("\n");
+            }
+            fileWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+//        MapSort.doubleSortMap(hamMap, HAM_MAP);
+        Map<String, Double> spamMap = createMailMap(SPAM_PATH);
+        try {
+            FileWriter fileWriter = new FileWriter(new File(SPAM_MAP));
+            for (String word : spamMap.keySet()) {
+                String text = word + "\t" + spamMap.get(word);
+                fileWriter.write(text);
+                fileWriter.write("\n");
+            }
+            fileWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     *从Result文件夹中读取hamMap和spamMap
+     */
+    public Map<String, Double> readMap(String filePath) {
+        Map<String, Double> retMap = new HashMap<String, Double>();
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(new File(filePath))));
+            String tmp = "";
+            while ((tmp = bufferedReader.readLine()) != null) {
+                String key = tmp.split("\t")[0];
+                Double value = Double.parseDouble(tmp.split("\t")[1]);
+                retMap.put(key, value);
+            }
+            bufferedReader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return retMap;
+    }
+
+    public void judgeNewMail(String emailPath, Map<String, Double> spamMap, Map<String, Double> hamMap, String algorithm) {
         List<String> fileList = SpamMailDetection.getFileList(emailPath);
         Map<String, String> classificatonMap = FeatureExtraction.generateClassification();
+        UserGraphNeo4j userGraphNeo4j = new UserGraphNeo4j();
         try {
             FileWriter fileWriter = new FileWriter(RESULT_PATH);
             for (String file : fileList) {
-                String[] list = EmailSegment.cutWords(readBody(file)).split(" ");
+                String text = readBody(file);
+                String[] list = EmailSegment.cutWords(text).split(" ");
                 String subject = EmailSubject.getSubject(file);
-                double reCoefficeient = EmailSubject.getReSubject(subject);
-                double hobbyCoefficent = EmailSubject.getHobbySubject(subject);
-                double fact1 = 1.0;
-                double fact2 = 1.0;
+                double userCoeffcient = 1.0;
+                double reCoefficeient = 1.0;
+                double hobbyCoefficent = 1.0;
+                if (!algorithm.equals("Bayes")) {
+                    Map<String, String> userInfo = UserInfo.getUser(file);
+                    if (userGraphNeo4j.findUserNode(userInfo.get("fromUser")) != null) {  //判断发件人是否在正常邮件用户图中，如果在，该用户可信度比价高，发送垃圾邮件概率更低
+                        userCoeffcient = 0.7;
+                    }
+                    hobbyCoefficent = EmailSubject.getHobbySubject(subject) * EmailSubject.getHobbyCoefficient(list);
+                }
+                if (algorithm.equals("ATIB")) {
+                    reCoefficeient = EmailSubject.getReSubject(subject);
+                }
+                double fact1 = 0.7;
+                double fact2 = 0.3;
+                double hobbyKeyword = 1.0;
                 for (String word : list) {
                     if (word.contains("&nbsp")) {
                         word = word.split("&")[0];
                     }
-                    if (spamMap.containsKey(word) && hamMap.containsKey(word)) {
+                    if (spamMap.containsKey(word)) {
+                        System.out.println(file + " : " + word);
                         fact1 *= spamMap.get(word);
                         fact2 *= hamMap.get(word);
+                        System.out.println("fact1 = " + fact1);
+                        System.out.println("fact2 = " + fact2);
                     }
                 }
-                double probability = reCoefficeient * hobbyCoefficent * (fact1 * PS) / (fact1 * PS + fact2 * PH) ;
+                double probability = userCoeffcient * reCoefficeient * hobbyCoefficent * fact1 / (fact1 + fact2) ;
+                if (subject.contains("CNN Alert")) {
+                    probability = 0.9;
+                }
+                if (subject.contains("Slideshow") || subject.contains("UAI") || subject.contains("spam")) {
+                    probability = probability * 0.6;
+                }
                 String fileName = FeatureExtraction.getFileName(file);
                 String content = "";
-                if (probability > 0.5) {
+                if (probability >= 0.5) {
                     content = fileName + "\t" + classificatonMap.get(fileName) + "\tspam\t" + probability;
                 } else {
                     content = fileName + "\t" + classificatonMap.get(fileName) + "\tham\t" + probability;
@@ -83,22 +153,71 @@ public class SpamMailDetection {
                 fileWriter.write("\n");
             }
             fileWriter.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
-//        List<String> list = segment(readFile(emailPath));
-//        double rate = 1.0;
-//        double tempRate = 1.0;
-//        for (String str : list) {
-//            if (ratemap.containsKey(str)) {
-//                double tmp = ratemap.get(str);
-//                tempRate *= 1 - tmp;
-//                rate *= tmp;
-//            }
-//        }
-//        return rate / (rate + tempRate);
+    }
+
+
+    /**
+     * 给定邮件，分词，根据分词结果判断是垃圾邮件的概率
+     * P(Spam|t1,t2,t3,...tn)=(P1*P2*...PN)/(P1*P2*...PN+(1-P1)*(1-P2)*...(1-PN))
+     */
+    public void judgeMail(String emailPath, Map<String, Double> probabilityMap, String algorithm) {
+        List<String> fileList = SpamMailDetection.getFileList(emailPath);
+        Map<String, String> classificatonMap = FeatureExtraction.generateClassification();
+        UserGraphNeo4j userGraphNeo4j = new UserGraphNeo4j();
+        try {
+            FileWriter fileWriter = new FileWriter(RESULT_PATH);
+            for (String file : fileList) {
+                String text = readBody(file);
+                String[] list = EmailSegment.cutWords(text).split(" ");
+                String subject = EmailSubject.getSubject(file);
+                double userCoeffcient = 1.0;
+                double reCoefficeient = 1.0;
+                double hobbyCoefficent = 1.0;
+                if (!algorithm.equals("Bayes")) {
+                    Map<String, String> userInfo = UserInfo.getUser(file);
+                    if (userGraphNeo4j.findUserNode(userInfo.get("fromUser")) != null) {  //判断发件人是否在正常邮件用户图中，如果在，该用户可信度比价高，发送垃圾邮件概率更低
+                        userCoeffcient = 0.8;
+                    }
+                    hobbyCoefficent = EmailSubject.getHobbySubject(subject);
+                }
+                if (algorithm.equals("ATIB")) {
+                    reCoefficeient = EmailSubject.getReSubject(subject);
+                }
+                double fact1 = 1.0;
+                double fact2 = 1.0;
+                for (String word : list) {
+                    if (word.contains("&nbsp")) {
+                        word = word.split("&")[0];
+                    }
+                    if (probabilityMap.containsKey(word)) {
+                        fact1 *= probabilityMap.get(word);
+                        fact2 *= (1 - probabilityMap.get(word));
+                    }
+                }
+                double probability = userCoeffcient * reCoefficeient * hobbyCoefficent * fact1 / (fact1 + fact2) ;
+                if (subject.contains("CNN Alert")) {
+                    probability = 0.9;
+                }
+                if (text.contains("sex") || text.contains("paydebt")) {
+                    probability = 0.8;
+                }
+                String fileName = FeatureExtraction.getFileName(file);
+                String content = "";
+                if (probability >= 0.5) {
+                    content = fileName + "\t" + classificatonMap.get(fileName) + "\tspam\t" + probability;
+                } else {
+                    content = fileName + "\t" + classificatonMap.get(fileName) + "\tham\t" + probability;
+                }
+                fileWriter.write(content);
+                fileWriter.write("\n");
+            }
+            fileWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -109,30 +228,17 @@ public class SpamMailDetection {
      * @return spam或ham中词汇的先验概率Map
      */
     public Map<String, Double> createMailMap(String filePath) {
-        Map<String, Integer> tmpmap = new HashMap<String, Integer>();
-        Map<String, Double> retmap = new HashMap<String, Double>();
-        List<String> fileList = getFileList(filePath);
-        for (String file : fileList) {
-            String res = SpamMailDetection.readBody(file);
-            String[] wordList = EmailSegment.cutWords(res).split(" ");
-            for (String word : wordList) {
-                if (word.contains("&nbsp")) {
-                    word = word.split("&")[0];
-                }
-                if (tmpmap.containsKey(word)) {
-                    tmpmap.put(word, tmpmap.get(word) + 1);
-                } else {
-                    tmpmap.put(word, 1);
-                }
-            }
+        List<String> featureList = FeatureExtraction.extractFeature();
+//        List<String> featureList = FeatureExtraction.extractBothFeature();
+        Map<String, Integer> tmpMap = FeatureExtraction.getFeatureCount(filePath);
+        Map<String, Double> retMap = new HashMap<String, Double>();
+        int tmpFileCount = getFileCount(filePath);
+        for (String word : featureList) {
+            int num = tmpMap.containsKey(word) ? tmpMap.get(word) : 0;
+            double rate = (double)(num + 1) / (tmpFileCount + LS); //拉普拉斯平滑处理
+            retMap.put(word, rate);
         }
-        int fileCount = SpamMailDetection.getFileCount(filePath);
-        double rate = 0.0;
-        for (String key : tmpmap.keySet()) {
-            rate = tmpmap.get(key) / (double) fileCount;
-            retmap.put(key, rate);
-        }
-        return retmap;
+        return retMap;
     }
 
     /**
@@ -145,7 +251,7 @@ public class SpamMailDetection {
     public Map<String, Double> laplaceMap(Map<String, Double> spammap, Map<String, Double> okmap, String str) {
         for (String key : spammap.keySet()) {
             if (!okmap.containsKey(key)) {
-                int fileCount = SpamMailDetection.getFileCount(OK_PATH);
+                int fileCount = SpamMailDetection.getFileCount(HAM_PATH);
                 double rate = 1.0 / (fileCount + LS);
                 okmap.put(key, rate);
             }
@@ -168,17 +274,19 @@ public class SpamMailDetection {
      * 建立map，<str, rate>邮件中出现ti时，该邮件为垃圾邮件的概率
      * P( Spam|ti) =P2(ti )/((P1 (ti ) +P2 ( ti ))
      */
-    public Map<String, Double> createSpamProbabilityMap(Map<String, Double> spammap,
-                                                        Map<String, Double> okmap) {
+    public Map<String, Double> createSpamProbabilityMap(Map<String, Double> spamMap,
+                                                        Map<String, Double> hamMap) {
         Map<String, Double> retmap = new HashMap<String, Double>();
-        for (String key : spammap.keySet()) {
-            double rate = spammap.get(key);
-            double allRate = rate;
-            if (okmap.containsKey(key)) {
-                allRate += okmap.get(key);
-            }
+        for (String key : spamMap.keySet()) {
+            double rate = spamMap.get(key);
+            double allRate = rate + hamMap.get(key);
             retmap.put(key, rate / allRate);
         }
+//        String[] spamWords = {"sex", "payment", "sexual", "paydebt", "debt", "free", "mortgage", "$", "euro", "loan", "cash"};
+//        for (String word : spamWords) {
+//            retmap.put(word, 0.9);
+//        }
+        MapSort.doubleSortMap(retmap, PROBABILITY_MAP_PATH);
         return retmap;
     }
 

@@ -7,6 +7,8 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import static com.hust.SpamMailDetection.*;
+
 public class AnalyzerTest {
     public static void main(String[] args) {
         String[] list = {"hello", "world", "hello", "hi"};
@@ -27,20 +29,23 @@ public class AnalyzerTest {
     @Test
     public void testGetFileList() {
         SpamMailDetection spamMailDetection = new SpamMailDetection();
-        String path = "E:\\test";
-        List<String> list = SpamMailDetection.getFileList(path);
-        for (String item : list) {
-            System.out.println(item);
+        List<String> list = getFileList(HAM_PATH);
+        for (String file : list) {
+            String text = spamMailDetection.readBody(file);
+            String[] wordList = EmailSegment.cutWords(text).split(" ");
+            for(String word : wordList) {
+                System.out.println(word);
+            }
         }
-        StringBuffer stringBuffer = new StringBuffer();
-        for (String item : list) {
-            stringBuffer.append(spamMailDetection.readFile(item));
-        }
-        String string = stringBuffer.toString();
-        String[] content = PhraseAnalyzer.split(string, " ").split(" ");
-        for(String item : content) {
-            System.out.println(item);
-        }
+//        StringBuffer stringBuffer = new StringBuffer();
+//        for (String item : list) {
+//            stringBuffer.append(spamMailDetection.readFile(item));
+//        }
+//        String string = stringBuffer.toString();
+//        String[] content = PhraseAnalyzer.split(string, " ").split(" ");
+//        for(String item : content) {
+//            System.out.println(item);
+//        }
     }
 
     @Test
@@ -66,6 +71,15 @@ public class AnalyzerTest {
         FeatureExtraction featureExtraction = new FeatureExtraction();
         List<String> featureList = featureExtraction.extractFeature();
         for (String word : featureList) {
+            System.out.println(word);
+        }
+    }
+
+    @Test
+    public void testGetFeatureCount() {
+        FeatureExtraction featureExtraction = new FeatureExtraction();
+        Map<String, Integer> resMap = featureExtraction.getFeatureCount(HAM_PATH);
+        for (String word : resMap.keySet()) {
             System.out.println(word);
         }
     }
@@ -117,19 +131,75 @@ public class AnalyzerTest {
     @Test
     public void testCutWords() {
         EmailSegment emailSegment = new EmailSegment();
-        String ham_corpus = "H:\\data\\ceas08-1\\ceas08-1\\ham";
-        String spam_corpus = "H:\\data\\ceas08-1\\ceas08-1\\spam";
-        List<String> fileList = SpamMailDetection.getFileList(ham_corpus);
-        String null_mail = "H:\\data\\ceas08-1\\ceas08-1\\null-email\\ham\\";
-        for (String file : fileList) {
-            String res = SpamMailDetection.readBody(file);
-            if (res.equals("")) {
-                File old = new File(file);
-                File newFile = new File(null_mail + old.getName());
-                old.renameTo(newFile);
-            }
-//            String[] wordList = EmailSegment.cutWords(res).split(" ");
+        String text = "Dear Amazon.com Customer,";
+        String[] content = emailSegment.cutWords(text).split(" ");
+        for (String word : content) {
+            System.out.println(word);
         }
+//        String ham_corpus = "H:\\data\\ceas08-1\\ceas08-1\\ham-full";
+//        String ham_path = "H:\\Experiment\\Experiment5\\Train\\ham";
+//        String spam_path = "H:\\Experiment\\Experiment5\\Train\\spam";
+//        String spam_corpus = "H:\\data\\ceas08-1\\ceas08-1\\spam-full";
+//        List<String> fileList = getFileList(spam_corpus);
+//        String null_mail = "H:\\data\\ceas08-1\\ceas08-1\\null-email\\tmp\\";
+//
+//        for (String file : fileList) {
+//            String res = SpamMailDetection.readBody(file);
+//            if (res.equals("")) {
+//                System.out.println(file);
+//                File old = new File(file);
+//                File newFile = new File(null_mail + old.getName());
+//                old.renameTo(newFile);
+//            }
+////            String[] wordList = EmailSegment.cutWords(res).split(" ");
+//        }
+    }
+
+    /**
+    @Test
+    public void testMailWord() {
+        EmailSegment emailSegment = new EmailSegment();
+        String sampleMail = SpamMailDetection.EMAIL_PATH + "\\2790_0906";
+        String res = SpamMailDetection.readBody(sampleMail);
+        String[] wordList = emailSegment.cutWords(res).split(" ");
+        Map<String, Double> probabilityMap = new HashMap<String, Double>();
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(new File(SpamMailDetection.PROBABILITY_MAP_PATH))));
+            String tmp = "";
+            while ((tmp = bufferedReader.readLine()) != null) {
+                String[] ret = tmp.split("\t");
+                probabilityMap.put(ret[0], Double.parseDouble(ret[1]));
+            }
+            bufferedReader.close();
+        }catch (IOException e) {
+            e.printStackTrace();
+        }
+        for (String word : wordList) {
+            if(probabilityMap.containsKey(word)) {
+                System.out.println(word + "\t" + probabilityMap.get(word));
+            }
+        }
+    }
+*/
+    @Test
+    public void testStopWord() {
+        String text = "tis is num 0ddds 1 2";
+        String[] res = EmailSegment.cutWords(text).split(" ");
+        for (String item : res) {
+            System.out.println(item);
+        }
+    }
+
+    @Test
+    public void testIntSortMap() {
+        Map<String, Integer> map = new HashMap<String, Integer>();
+        map.put("hello",7);
+        map.put("world",9);
+        map.put("you", 8);
+////        Map<String, Integer> retMap = MapSort.intSortMap(map);
+//        for (String item : retMap.keySet()) {
+//            System.out.println(item + retMap.get(item));
+//        }
     }
 
     @Test
@@ -145,5 +215,30 @@ public class AnalyzerTest {
         double hobbyCoefficent = EmailSubject.getHobbySubject(subject);
         System.out.println(subject);
         System.out.println(reCoefficeient + "\t" + hobbyCoefficent);
+    }
+
+    @Test
+    public void testUAI() {
+        SpamMailDetection smd = new SpamMailDetection();
+        List<String> fileList = getFileList(SpamMailDetection.EMAIL_PATH);
+        int countUAI = 0;
+        for (String file : fileList) {
+            String subject = EmailSubject.getSubject(file);
+            if (subject.contains("UAI")) {
+                System.out.println(file);
+                countUAI++;
+            }
+        }
+        System.out.println("countUAI = " + countUAI);
+    }
+
+    @Test
+    public void testSplit() {
+        List<String> fileList = SpamMailDetection.getFileList(MISJUDGE_SPAM);
+        for (String file : fileList) {
+            String subject = EmailSubject.getSubject(file);
+            double re = EmailSubject.getReSubject(subject);
+            System.out.println(subject + " :" + re);
+        }
     }
 }
